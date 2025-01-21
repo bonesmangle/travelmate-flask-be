@@ -33,6 +33,7 @@ def recommend():
     user_id = data.get('user_id')
     category = data.get('category')
     days = data.get('days')
+    saved_destination_ids = data.get('saved_destinations', [])  # Get saved destination IDs
 
     if not user_id or not category or not days:
         return jsonify({"error": "user_id, category, and days are required"}), 400
@@ -40,11 +41,11 @@ def recommend():
     logger.info(f"Received user_id: {user_id}")
     logger.info(f"Received category: {category}")
     logger.info(f"Received days: {days}")
+    logger.info(f"Received saved_destinations: {saved_destination_ids}")
 
     client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
     db = client["project11"]
     destinations = db["destinations"]
-    saved_destinations = db["saved_destinations"]
 
     # Fetch all destinations
     data = list(destinations.find({}, {"_id": 1, "category": 1, "amenities": 1}))
@@ -63,20 +64,10 @@ def recommend():
 
     logger.info(f"Preprocessed amenities: {places['amenities'].tolist()}")
 
-    # Fetch user's saved destinations
-    user_saved_destinations = list(saved_destinations.find({"user_id": user_id}, {"destination_id": 1}))
-    user_saved_destinations = [ObjectId(doc["destination_id"]) for doc in user_saved_destinations]
-
-    logger.info(f"User's saved destination IDs: {user_saved_destinations}")
-
-    # Fetch details of saved destinations
-    saved_destinations_details = list(destinations.find({"_id": {"$in": user_saved_destinations}}, {"_id": 1, "category": 1, "amenities": 1}))
-    logger.info(f"Details of saved destinations: {saved_destinations_details}")
-
     # Create user profile
     user_profile = pd.DataFrame({
         "_id": [user_id],
-        "savedDestinations": [user_saved_destinations]
+        "savedDestinations": [saved_destination_ids]  # Use saved_destination_ids
     })
 
     user_profile["preferredAmenities"] = user_profile["savedDestinations"].apply(lambda x: find_amenities(x, places))
