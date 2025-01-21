@@ -44,6 +44,8 @@ def recommend():
     data = list(destinations.find({}, {"_id": 1, "category": 1, "amenities": 1}))
     places = pd.DataFrame(data)
 
+    print(f"Fetched all destinations: {places}")
+
     # Preprocess amenities
     places = places.apply(lambda x: x.astype(str).str.lower().str.strip())
     places["amenities"] = places["amenities"].str.replace('.', '')
@@ -53,13 +55,17 @@ def recommend():
     places["amenities"] = places["amenities"].apply(lambda x: sorted(x))
     places["amenities"] = places["amenities"].apply(lambda x: " ".join(x))
 
-    print(f"All destinations amenities: {places['amenities']}")
+    print(f"Preprocessed amenities: {places['amenities']}")
 
     # Fetch user's saved destinations
     user_saved_destinations = list(saved_destinations.find({"user_id": user_id}, {"destination_id": 1}))
     user_saved_destinations = [ObjectId(doc["destination_id"]) for doc in user_saved_destinations]
 
-    print(f"User's saved destinations: {user_saved_destinations}")
+    print(f"User's saved destination IDs: {user_saved_destinations}")
+
+    # Fetch details of saved destinations
+    saved_destinations_details = list(destinations.find({"_id": {"$in": user_saved_destinations}}, {"_id": 1, "category": 1, "amenities": 1}))
+    print(f"Details of saved destinations: {saved_destinations_details}")
 
     # Create user profile
     user_profile = pd.DataFrame({
@@ -74,6 +80,7 @@ def recommend():
     user = user_profile.loc[user_profile["_id"] == user_id]
 
     if user.empty:
+        print("User has no saved destinations. Generating random recommendations.")
         if places.shape[0] >= 10:
             recomend_list = []
             while len(recomend_list) < (5 * days):
@@ -112,6 +119,8 @@ def recommend():
         remaining = (5 * days) - len(recomend_list)
         available_destinations = places[places["category"].isin(category)]
         
+        print(f"Available destinations in selected categories: {available_destinations}")
+
         # Check if there are enough destinations to sample
         if len(available_destinations) >= remaining:
             additional_destinations = available_destinations.sample(remaining)
@@ -121,7 +130,7 @@ def recommend():
         
         recomend_list.extend(additional_destinations["_id"].astype(str).tolist())
 
-    print(f"Recommendations: {recomend_list}")
+    print(f"Final recommendations: {recomend_list}")
 
     return jsonify(recomend_list)
 
