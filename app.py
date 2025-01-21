@@ -31,17 +31,22 @@ def recommend():
     if not user_id or not category or not days:
         return jsonify({"error": "user_id, category, and days are required"}), 400
 
+    print(f"Received user_id: {user_id}")
+    print(f"Received category: {category}")
+    print(f"Received days: {days}")
+
     client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
     db = client["project11"]
     destinations = db["destinations"]
     saved_destinations = db["saved_destinations"]
 
+    # Fetch all destinations
     data = list(destinations.find({}, {"_id": 1, "category": 1, "amenities": 1}))
     places = pd.DataFrame(data)
 
+    # Preprocess amenities
     places = places.apply(lambda x: x.astype(str).str.lower())
     places = places.apply(lambda x: x.astype(str).str.strip())
-
     places["amenities"] = places["amenities"].str.replace('.', '')
     places["amenities"] = places["amenities"].str.replace(" ", "")
     places["amenities"] = places["amenities"].apply(lambda x: x.split(","))
@@ -49,15 +54,23 @@ def recommend():
     places["amenities"] = places["amenities"].apply(lambda x: sorted(x))
     places["amenities"] = places["amenities"].apply(lambda x: " ".join(x))
 
+    print(f"All destinations amenities: {places['amenities']}")
+
+    # Fetch user's saved destinations
     user_saved_destinations = list(saved_destinations.find({"user_id": user_id}, {"destination_id": 1}))
     user_saved_destinations = [ObjectId(doc["destination_id"]) for doc in user_saved_destinations]
 
+    print(f"User's saved destinations: {user_saved_destinations}")
+
+    # Create user profile
     user_profile = pd.DataFrame({
         "_id": [user_id],
         "savedDestinations": [user_saved_destinations]
     })
 
     user_profile["preferredAmenities"] = user_profile["savedDestinations"].apply(lambda x: find_amenities(x, places))
+
+    print(f"User's preferred amenities: {user_profile['preferredAmenities']}")
 
     user = user_profile.loc[user_profile["_id"] == user_id]
 
@@ -72,6 +85,7 @@ def recommend():
         else:
             return jsonify([str(id) for id in places["_id"].to_list()])
 
+    # Calculate TF-IDF and cosine similarity
     tfidf = TfidfVectorizer()
     place_tfidf = tfidf.fit_transform(places["amenities"])
     user_tfidf = tfidf.transform(user_profile["preferredAmenities"])
@@ -80,6 +94,9 @@ def recommend():
     sim_scores = list(enumerate(cosine_sim[-1, :]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
 
+    print(f"Cosine similarity scores: {sim_scores}")
+
+    # Generate recommendations
     i = 0
     recomend_list = [str(id) for id in user["savedDestinations"].iloc[0]]
     while len(recomend_list) < (5 * days):
@@ -90,6 +107,8 @@ def recommend():
             if str(places["_id"].iloc[indx]) not in recomend_list:
                 recomend_list.append(str(places["_id"].iloc[indx]))
         i += 1
+
+    print(f"Recommendations: {recomend_list}")
 
     return jsonify(recomend_list)
 
