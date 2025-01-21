@@ -45,8 +45,7 @@ def recommend():
     places = pd.DataFrame(data)
 
     # Preprocess amenities
-    places = places.apply(lambda x: x.astype(str).str.lower())
-    places = places.apply(lambda x: x.astype(str).str.strip())
+    places = places.apply(lambda x: x.astype(str).str.lower().str.strip())
     places["amenities"] = places["amenities"].str.replace('.', '')
     places["amenities"] = places["amenities"].str.replace(" ", "")
     places["amenities"] = places["amenities"].apply(lambda x: x.split(","))
@@ -86,7 +85,7 @@ def recommend():
             return jsonify([str(id) for id in places["_id"].to_list()])
 
     # Calculate TF-IDF and cosine similarity
-    tfidf = TfidfVectorizer()
+    tfidf = TfidfVectorizer(max_features=1000, ngram_range=(1, 2))
     place_tfidf = tfidf.fit_transform(places["amenities"])
     user_tfidf = tfidf.transform(user_profile["preferredAmenities"])
     cosine_sim = cosine_similarity(user_tfidf, place_tfidf)
@@ -107,6 +106,12 @@ def recommend():
             if str(places["_id"].iloc[indx]) not in recomend_list:
                 recomend_list.append(str(places["_id"].iloc[indx]))
         i += 1
+
+    # If the list is still short, add random destinations from the selected category
+    if len(recomend_list) < (5 * days):
+        remaining = (5 * days) - len(recomend_list)
+        additional_destinations = places[places["category"].isin(category)].sample(remaining)
+        recomend_list.extend(additional_destinations["_id"].astype(str).tolist())
 
     print(f"Recommendations: {recomend_list}")
 
