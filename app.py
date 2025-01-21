@@ -110,7 +110,15 @@ def recommend():
     # If the list is still short, add random destinations from the selected category
     if len(recomend_list) < (5 * days):
         remaining = (5 * days) - len(recomend_list)
-        additional_destinations = places[places["category"].isin(category)].sample(remaining)
+        available_destinations = places[places["category"].isin(category)]
+        
+        # Check if there are enough destinations to sample
+        if len(available_destinations) >= remaining:
+            additional_destinations = available_destinations.sample(remaining)
+        else:
+            # If not enough, add all available destinations
+            additional_destinations = available_destinations
+        
         recomend_list.extend(additional_destinations["_id"].astype(str).tolist())
 
     print(f"Recommendations: {recomend_list}")
