@@ -22,10 +22,17 @@ logger = logging.getLogger(__name__)
 MONGO_URI = os.getenv('MONGODB_URI', 'mongodb+srv://dbUser:12345@cluster0.dgpab.mongodb.net/project11?retryWrites=true&w=majority&tls=true')
 
 def find_amenities(x, places):
+    # Filter places to include only the saved destinations
     temp = places[places["_id"].isin([ObjectId(id) for id in x])]
+    
+    # Filter out destinations with empty amenities
     temp = temp[temp["amenities"] != ""]
-    temp = temp["amenities"].to_list()
-    return " ".join(sorted(temp))
+    
+    # Combine amenities into a single string
+    amenities_list = temp["amenities"].tolist()
+    combined_amenities = " ".join(amenities_list)
+    
+    return combined_amenities
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
